@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veldoc</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <header class="sidebar-header">
+        <span class="logo">veldoc</span>
+        <button id="refresh-btn" type="button" title="Refresh">↻</button>
+      </header>
+      <nav id="tree" class="tree"></nav>
+    </aside>
+    <main class="content">
+      <div id="empty" class="empty-state">
+        <p>Select a file to view its contents</p>
+      </div>
+      <div id="viewer" class="viewer hidden">
+        <header class="viewer-header">
+          <span id="file-path"></span>
+          <div class="viewer-actions">
+            <button id="mode-raw" type="button">Raw</button>
+            <button id="mode-md" type="button" class="hidden">Markdown</button>
+            <form id="logout-form" class="hidden" method="POST" action="/logout">
+              <button type="submit">Logout</button>
+            </form>
+          </div>
+        </header>
+        <pre id="raw-view" class="file-content"></pre>
+        <div id="md-view" class="file-content markdown hidden"></div>
+        <div id="image-view" class="file-content image-view hidden">
+          <img id="image-preview" alt="">
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
