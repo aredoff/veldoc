@@ -6,6 +6,7 @@ let isMarkdown = false;
 let treeNodes = [];
 const expandedDirs = new Set();
 let previewObjectURL = null;
+let loadRequestId = 0;
 
 const treeEl = document.getElementById('tree');
 const emptyEl = document.getElementById('empty');
@@ -240,19 +241,16 @@ async function selectFile(path, meta, options = {}) {
   renderTree(treeNodes, 0);
   highlightSelected();
 
-  isMarkdown = /\.(md|markdown)$/i.test(path);
-  modeRawBtn.classList.remove('hidden');
-  modeMdBtn.classList.toggle('hidden', !isMarkdown);
+  modeRawBtn.classList.add('hidden');
+  modeMdBtn.classList.add('hidden');
 
   emptyEl.classList.add('hidden');
   viewerEl.classList.remove('hidden');
   filePathEl.textContent = path;
   updateDownloadLink(path);
 
-  setMode(isMarkdown ? 'md' : 'raw');
-
   const ok = await loadFileContent(path);
-  if (!ok) {
+  if (!ok || selectedPath !== path) {
     return;
   }
 
@@ -315,7 +313,10 @@ async function fetchPreviewBlob(url) {
   return res.blob();
 }
 
-async function showBinaryPreview(url, mime) {
+async function showBinaryPreview(url, mime, requestId) {
+  if (requestId !== loadRequestId) {
+    return false;
+  }
   clearPreview();
   const src = previewURL(url);
 
@@ -330,7 +331,15 @@ async function showBinaryPreview(url, mime) {
 
   try {
     const blob = await fetchPreviewBlob(src);
+    if (requestId !== loadRequestId) {
+      return false;
+    }
     previewObjectURL = URL.createObjectURL(blob);
+    if (requestId !== loadRequestId) {
+      URL.revokeObjectURL(previewObjectURL);
+      previewObjectURL = null;
+      return false;
+    }
     const blobSrc = previewObjectURL;
 
     if (mime.startsWith('image/')) {
@@ -371,12 +380,17 @@ async function showBinaryPreview(url, mime) {
 }
 
 async function loadFileContent(path, options = {}) {
+  const requestId = ++loadRequestId;
+  const isCurrent = () => requestId === loadRequestId;
   const preserveScroll = options.preserveScroll === true;
   const scrollEl = getActiveView();
   const scrollTop = preserveScroll ? scrollEl.scrollTop : 0;
 
   try {
     const res = await fetch('/api/file?path=' + encodeURIComponent(path));
+    if (!isCurrent()) {
+      return true;
+    }
     if (res.status === 404) {
       showNotFound(path);
       return false;
@@ -387,12 +401,22 @@ async function loadFileContent(path, options = {}) {
       return false;
     }
     const data = await res.json();
+    if (!isCurrent()) {
+      return true;
+    }
 
     if (data.kind === 'binary' || data.kind === 'image') {
       modeRawBtn.classList.add('hidden');
       modeMdBtn.classList.add('hidden');
       setMode('preview');
-      const previewOk = await showBinaryPreview(data.url, data.mime || 'application/octet-stream');
+      const previewOk = await showBinaryPreview(
+        data.url,
+        data.mime || 'application/octet-stream',
+        requestId,
+      );
+      if (!isCurrent()) {
+        return true;
+      }
       if (!previewOk) {
         return false;
       }
@@ -402,8 +426,9 @@ async function loadFileContent(path, options = {}) {
     }
 
     modeRawBtn.classList.remove('hidden');
+    isMarkdown = /\.(md|markdown)$/i.test(path);
     modeMdBtn.classList.toggle('hidden', !isMarkdown);
-    if (!previewView.classList.contains('hidden')) {
+    if (!preserveScroll || !previewView.classList.contains('hidden')) {
       setMode(isMarkdown ? 'md' : 'raw');
     }
     clearPreview();
@@ -415,6 +440,9 @@ async function loadFileContent(path, options = {}) {
 
     if (isMarkdown) {
       const mdRes = await fetch('/api/markdown?path=' + encodeURIComponent(path));
+      if (!isCurrent()) {
+        return true;
+      }
       if (mdRes.ok) {
         const mdData = await mdRes.json();
         if (mdView.innerHTML !== mdData.html) {
@@ -430,6 +458,9 @@ async function loadFileContent(path, options = {}) {
     }
     return true;
   } catch (_) {
+    if (!isCurrent()) {
+      return true;
+    }
     showFileError('Failed to load file');
     return false;
   }
