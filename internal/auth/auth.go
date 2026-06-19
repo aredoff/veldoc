@@ -22,7 +22,11 @@ type Authenticator interface {
 	LoginPage() http.Handler
 }
 
-func New(cfg config.Config) (Authenticator, error) {
+type Options struct {
+	AssetVersion string
+}
+
+func New(cfg config.Config, opts Options) (Authenticator, error) {
 	switch cfg.Auth {
 	case config.AuthNone:
 		return &None{}, nil
@@ -30,9 +34,10 @@ func New(cfg config.Config) (Authenticator, error) {
 		return &Basic{user: cfg.BasicUser, pass: cfg.BasicPass}, nil
 	case config.AuthForm:
 		return &Form{
-			user:   cfg.FormUser,
-			pass:   cfg.FormPass,
-			secret: []byte(cfg.SessionSecret),
+			user:         cfg.FormUser,
+			pass:         cfg.FormPass,
+			secret:       []byte(cfg.SessionSecret),
+			assetVersion: opts.AssetVersion,
 		}, nil
 	case config.AuthToken:
 		return &Token{token: cfg.Token}, nil
@@ -105,9 +110,10 @@ func (t *Token) LogoutHandler() http.Handler { return http.NotFoundHandler() }
 func (t *Token) LoginPage() http.Handler     { return http.NotFoundHandler() }
 
 type Form struct {
-	user   string
-	pass   string
-	secret []byte
+	user         string
+	pass         string
+	secret       []byte
+	assetVersion string
 }
 
 func (f *Form) Middleware(next http.Handler) http.Handler {
@@ -135,7 +141,9 @@ func (f *Form) LoginPage() http.Handler {
 		if r.URL.Query().Get("error") == "1" {
 			message = "Invalid credentials"
 		}
-		_, _ = w.Write([]byte(strings.Replace(loginHTML, "{{ERROR}}", message, 1)))
+		html := strings.ReplaceAll(loginHTML, "{{ASSET_VERSION}}", f.assetVersion)
+		html = strings.Replace(html, "{{ERROR}}", message, 1)
+		_, _ = w.Write([]byte(html))
 	})
 }
 
@@ -219,7 +227,7 @@ const loginHTML = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Veldoc Login</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/static/login.css">
+  <link rel="stylesheet" href="/static/login.css?v={{ASSET_VERSION}}">
 </head>
 <body>
   <form method="POST" action="/login">

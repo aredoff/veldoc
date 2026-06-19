@@ -29,12 +29,14 @@ func Run() error {
 		return err
 	}
 
-	authenticator, err := auth.New(cfg)
+	assetVersion := server.NewAssetVersion()
+
+	authenticator, err := auth.New(cfg, auth.Options{AssetVersion: assetVersion})
 	if err != nil {
 		return err
 	}
 
-	srv := server.New(cfg, fileService, authenticator, logger)
+	srv := server.New(cfg, fileService, authenticator, logger, assetVersion)
 	httpServer := srv.HTTPServer()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

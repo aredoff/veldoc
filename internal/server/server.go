@@ -21,18 +21,20 @@ import (
 var webFS embed.FS
 
 type Server struct {
-	cfg    config.Config
-	files  *files.Service
-	auth   auth.Authenticator
-	logger *slog.Logger
+	cfg          config.Config
+	files        *files.Service
+	auth         auth.Authenticator
+	logger       *slog.Logger
+	assetVersion string
 }
 
-func New(cfg config.Config, fileService *files.Service, authenticator auth.Authenticator, logger *slog.Logger) *Server {
+func New(cfg config.Config, fileService *files.Service, authenticator auth.Authenticator, logger *slog.Logger, assetVersion string) *Server {
 	return &Server{
-		cfg:    cfg,
-		files:  fileService,
-		auth:   authenticator,
-		logger: logger,
+		cfg:          cfg,
+		files:        fileService,
+		auth:         authenticator,
+		logger:       logger,
+		assetVersion: assetVersion,
 	}
 }
 
@@ -54,6 +56,7 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = w.Write(data)
 	})
@@ -80,10 +83,12 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
+		html := injectAssetVersion(string(data), s.assetVersion)
+		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(data)
+		_, _ = w.Write([]byte(html))
 	})
-	protected.Handle("GET /static/", http.StripPrefix("/static/", fileServer))
+	protected.Handle("GET /static/", immutableCache(http.StripPrefix("/static/", fileServer)))
 
 	public.Handle("/", s.auth.Middleware(protected))
 	return s.withMiddleware(public)

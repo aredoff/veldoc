@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aredoff/veldoc/internal/auth"
@@ -32,18 +33,18 @@ func TestHandlers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	authenticator, err := auth.New(config.Config{Auth: config.AuthNone})
+	authenticator, err := auth.New(config.Config{Auth: config.AuthNone}, auth.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	srv := New(config.Config{
-		Root:         root,
-		Addr:         ":0",
-		Auth:         config.AuthNone,
-		PollInterval: 3000,
+		Root:           root,
+		Addr:           ":0",
+		Auth:           config.AuthNone,
+		PollInterval:   3000,
 		MaxPreviewSize: 1024 * 1024,
-	}, fileService, authenticator, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, fileService, authenticator, slog.New(slog.NewTextHandler(io.Discard, nil)), "test")
 
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
@@ -175,8 +176,15 @@ func TestHandlers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	body, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("index status %d", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), "/static/app.js?v=test") {
+		t.Fatalf("index missing versioned app.js: %q", body)
 	}
 }

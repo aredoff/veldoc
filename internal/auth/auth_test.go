@@ -13,7 +13,7 @@ import (
 func TestBasicAuth(t *testing.T) {
 	t.Parallel()
 
-	a, err := New(config.Config{Auth: config.AuthBasic, BasicUser: "user", BasicPass: "pass"})
+	a, err := New(config.Config{Auth: config.AuthBasic, BasicUser: "user", BasicPass: "pass"}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestBasicAuth(t *testing.T) {
 func TestTokenAuth(t *testing.T) {
 	t.Parallel()
 
-	a, err := New(config.Config{Auth: config.AuthToken, Token: "secret-token"})
+	a, err := New(config.Config{Auth: config.AuthToken, Token: "secret-token"}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestFormAuthLogin(t *testing.T) {
 		FormUser:      "admin",
 		FormPass:      "secret",
 		SessionSecret: "test-secret-key",
-	})
+	}, Options{AssetVersion: "123"})
 	if err != nil {
 		t.Fatal(err)
 	}
