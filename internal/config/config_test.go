@@ -14,31 +14,31 @@ func TestValidateAuthModes(t *testing.T) {
 	}{
 		{
 			name: "none",
-			cfg: Config{Root: "/data", Addr: ":8080", Auth: AuthNone, MaxFileSize: 1024},
+			cfg: Config{Root: "/data", Addr: ":8080", Auth: AuthNone, MaxPreviewSize: 1024},
 		},
 		{
 			name: "basic missing creds",
-			cfg:  Config{Root: "/data", Addr: ":8080", Auth: AuthBasic, MaxFileSize: 1024},
+			cfg:  Config{Root: "/data", Addr: ":8080", Auth: AuthBasic, MaxPreviewSize: 1024},
 			wantErr: true,
 		},
 		{
 			name: "basic ok",
 			cfg: Config{
 				Root: "/data", Addr: ":8080", Auth: AuthBasic,
-				BasicUser: "u", BasicPass: "p", MaxFileSize: 1024,
+				BasicUser: "u", BasicPass: "p", MaxPreviewSize: 1024,
 			},
 		},
 		{
 			name: "form missing secret",
 			cfg: Config{
 				Root: "/data", Addr: ":8080", Auth: AuthForm,
-				FormUser: "u", FormPass: "p", MaxFileSize: 1024,
+				FormUser: "u", FormPass: "p", MaxPreviewSize: 1024,
 			},
 			wantErr: true,
 		},
 		{
 			name: "token missing",
-			cfg:  Config{Root: "/data", Addr: ":8080", Auth: AuthToken, MaxFileSize: 1024},
+			cfg:  Config{Root: "/data", Addr: ":8080", Auth: AuthToken, MaxPreviewSize: 1024},
 			wantErr: true,
 		},
 	}

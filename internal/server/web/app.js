@@ -3,9 +3,9 @@ let selectedPath = null;
 let selectedMeta = null;
 let pollTimer = null;
 let isMarkdown = false;
-let isImage = false;
 let treeNodes = [];
 const expandedDirs = new Set();
+let previewObjectURL = null;
 
 const treeEl = document.getElementById('tree');
 const emptyEl = document.getElementById('empty');
@@ -13,8 +13,9 @@ const viewerEl = document.getElementById('viewer');
 const filePathEl = document.getElementById('file-path');
 const rawView = document.getElementById('raw-view');
 const mdView = document.getElementById('md-view');
-const imageView = document.getElementById('image-view');
-const imagePreview = document.getElementById('image-preview');
+const previewView = document.getElementById('preview-view');
+const previewContent = document.getElementById('preview-content');
+const downloadBtn = document.getElementById('download-btn');
 const modeRawBtn = document.getElementById('mode-raw');
 const modeMdBtn = document.getElementById('mode-md');
 const logoutForm = document.getElementById('logout-form');
@@ -71,6 +72,7 @@ async function onPopState(e) {
 function clearSelection() {
   selectedPath = null;
   selectedMeta = null;
+  updateDownloadLink(null);
   viewerEl.classList.add('hidden');
   emptyEl.classList.remove('hidden');
   document.title = 'Veldoc';
@@ -183,13 +185,14 @@ function renderTree(nodes, depth, parentEl) {
     el.style.setProperty('--depth', depth);
     el.dataset.path = node.path;
 
-    const hasChildren = node.type === 'dir' && node.children && node.children.length > 0;
-    const expanded = hasChildren && expandedDirs.has(node.path);
+    const isDir = node.type === 'dir';
+    const hasChildren = isDir && node.children && node.children.length > 0;
+    const expanded = isDir && expandedDirs.has(node.path);
 
     const icon = document.createElement('span');
     icon.className = 'tree-icon';
-    if (node.type === 'dir') {
-      icon.textContent = hasChildren ? (expanded ? '▾' : '▸') : '▸';
+    if (isDir) {
+      icon.textContent = expanded ? '▾' : '▸';
     } else {
       icon.textContent = '·';
     }
@@ -204,7 +207,7 @@ function renderTree(nodes, depth, parentEl) {
 
     if (node.type === 'file') {
       el.addEventListener('click', () => selectFile(node.path, fileMeta(node)));
-    } else if (hasChildren) {
+    } else if (isDir) {
       el.addEventListener('click', () => toggleDir(node.path));
     }
 
@@ -238,19 +241,15 @@ async function selectFile(path, meta, options = {}) {
   highlightSelected();
 
   isMarkdown = /\.(md|markdown)$/i.test(path);
-  isImage = /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i.test(path);
-  modeRawBtn.classList.toggle('hidden', isImage);
-  modeMdBtn.classList.toggle('hidden', !isMarkdown || isImage);
+  modeRawBtn.classList.remove('hidden');
+  modeMdBtn.classList.toggle('hidden', !isMarkdown);
 
   emptyEl.classList.add('hidden');
   viewerEl.classList.remove('hidden');
   filePathEl.textContent = path;
+  updateDownloadLink(path);
 
-  if (isImage) {
-    setMode('image');
-  } else {
-    setMode(isMarkdown ? 'md' : 'raw');
-  }
+  setMode(isMarkdown ? 'md' : 'raw');
 
   const ok = await loadFileContent(path);
   if (!ok) {
@@ -260,6 +259,114 @@ async function selectFile(path, meta, options = {}) {
   document.title = path + ' — Veldoc';
   if (!options.skipHistory) {
     setPathInURL(path, options.replaceHistory);
+  }
+}
+
+function clearPreview() {
+  if (previewObjectURL) {
+    URL.revokeObjectURL(previewObjectURL);
+    previewObjectURL = null;
+  }
+  previewContent.innerHTML = '';
+}
+
+function fileNameFromPath(path) {
+  const parts = path.split('/');
+  return parts[parts.length - 1] || 'download';
+}
+
+function downloadURL(path) {
+  let url = '/api/raw?path=' + encodeURIComponent(path) + '&download=1';
+  if (selectedMeta?.modified) {
+    url += '&v=' + encodeURIComponent(selectedMeta.modified);
+  }
+  return url;
+}
+
+function updateDownloadLink(path) {
+  if (!path) {
+    downloadBtn.classList.add('hidden');
+    downloadBtn.removeAttribute('href');
+    downloadBtn.removeAttribute('download');
+    return;
+  }
+  downloadBtn.href = downloadURL(path);
+  downloadBtn.download = fileNameFromPath(path);
+  downloadBtn.classList.remove('hidden');
+}
+
+function previewURL(baseUrl) {
+  const cacheKey = selectedMeta?.modified || Date.now();
+  return baseUrl + '&v=' + encodeURIComponent(String(cacheKey));
+}
+
+async function fetchPreviewBlob(url) {
+  const res = await fetch(url, { credentials: 'same-origin' });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const err = await res.json();
+      if (err.error) {
+        message = err.error;
+      }
+    } catch (_) {}
+    throw new Error(message);
+  }
+  return res.blob();
+}
+
+async function showBinaryPreview(url, mime) {
+  clearPreview();
+  const src = previewURL(url);
+
+  const appendMedia = (el, blobSrc) => {
+    if (el.tagName === 'OBJECT') {
+      el.data = blobSrc;
+    } else {
+      el.src = blobSrc;
+    }
+    previewContent.appendChild(el);
+  };
+
+  try {
+    const blob = await fetchPreviewBlob(src);
+    previewObjectURL = URL.createObjectURL(blob);
+    const blobSrc = previewObjectURL;
+
+    if (mime.startsWith('image/')) {
+      const el = document.createElement('img');
+      el.alt = selectedPath || '';
+      appendMedia(el, blobSrc);
+      return true;
+    }
+
+    if (mime.startsWith('video/')) {
+      const el = document.createElement('video');
+      el.controls = true;
+      appendMedia(el, blobSrc);
+      return true;
+    }
+
+    if (mime.startsWith('audio/')) {
+      const el = document.createElement('audio');
+      el.controls = true;
+      appendMedia(el, blobSrc);
+      return true;
+    }
+
+    let el;
+    if (mime === 'application/pdf') {
+      el = document.createElement('embed');
+      el.type = 'application/pdf';
+    } else {
+      el = document.createElement('object');
+      el.type = mime;
+    }
+    appendMedia(el, blobSrc);
+    return true;
+  } catch (e) {
+    showFileError('Error: ' + e.message);
+    return false;
   }
 }
 
@@ -281,17 +388,25 @@ async function loadFileContent(path, options = {}) {
     }
     const data = await res.json();
 
-    if (data.kind === 'image') {
-      const cacheKey = selectedMeta?.modified || Date.now();
-      imagePreview.onerror = () => showNotFound(path);
-      imagePreview.src = data.url + '&v=' + encodeURIComponent(String(cacheKey));
-      imagePreview.alt = path;
+    if (data.kind === 'binary' || data.kind === 'image') {
+      modeRawBtn.classList.add('hidden');
+      modeMdBtn.classList.add('hidden');
+      setMode('preview');
+      const previewOk = await showBinaryPreview(data.url, data.mime || 'application/octet-stream');
+      if (!previewOk) {
+        return false;
+      }
       rawView.textContent = '';
       mdView.innerHTML = '';
       return true;
     }
 
-    imagePreview.onerror = null;
+    modeRawBtn.classList.remove('hidden');
+    modeMdBtn.classList.toggle('hidden', !isMarkdown);
+    if (!previewView.classList.contains('hidden')) {
+      setMode(isMarkdown ? 'md' : 'raw');
+    }
+    clearPreview();
 
     if (rawView.textContent !== data.content) {
       rawView.classList.remove('not-found');
@@ -321,7 +436,7 @@ async function loadFileContent(path, options = {}) {
 }
 
 function getActiveView() {
-  if (!imageView.classList.contains('hidden')) return imageView;
+  if (!previewView.classList.contains('hidden')) return previewView;
   return rawView.classList.contains('hidden') ? mdView : rawView;
 }
 
@@ -335,32 +450,35 @@ function showNotFound(path) {
   emptyEl.classList.add('hidden');
   viewerEl.classList.remove('hidden');
   filePathEl.textContent = path;
+  updateDownloadLink(null);
   modeRawBtn.classList.remove('hidden');
   modeMdBtn.classList.add('hidden');
   setMode('raw');
+  clearPreview();
   rawView.classList.add('not-found');
   rawView.textContent = '404 — File not found';
   mdView.innerHTML = '';
-  imagePreview.removeAttribute('src');
   document.title = '404 — Veldoc';
 }
 
 function showFileError(message) {
+  clearPreview();
   rawView.textContent = message;
   mdView.innerHTML = '';
-  imagePreview.removeAttribute('src');
+  modeRawBtn.classList.remove('hidden');
+  modeMdBtn.classList.add('hidden');
   setMode('raw');
 }
 
 function setMode(mode) {
   const isRaw = mode === 'raw';
   const isMd = mode === 'md';
-  const isImg = mode === 'image';
+  const isPreview = mode === 'preview';
   modeRawBtn.classList.toggle('active', isRaw);
   modeMdBtn.classList.toggle('active', isMd);
   rawView.classList.toggle('hidden', !isRaw);
   mdView.classList.toggle('hidden', !isMd);
-  imageView.classList.toggle('hidden', !isImg);
+  previewView.classList.toggle('hidden', !isPreview);
 }
 
 init();

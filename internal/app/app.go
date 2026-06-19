@@ -24,7 +24,7 @@ func Run() error {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-	fileService, err := files.NewService(cfg.Root, cfg.MaxFileSize)
+	fileService, err := files.NewService(cfg.Root, cfg.MaxPreviewSize)
 	if err != nil {
 		return err
 	}

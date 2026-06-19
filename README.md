@@ -32,7 +32,7 @@ docker compose up --build
 | `VELDOC_SESSION_SECRET` | | Form auth session secret |
 | `VELDOC_TOKEN` | | Bearer token |
 | `--poll-interval` / `VELDOC_POLL_INTERVAL` | `3s` | UI poll interval |
-| `--max-file-size` / `VELDOC_MAX_FILE_SIZE` | `2097152` | Max readable file size |
+| `--max-preview-size` / `VELDOC_MAX_PREVIEW_SIZE` | `52428800` | Max file size for preview in bytes (download is unlimited) |
 
 ## Excluding files (`.docignore`)
 

@@ -29,8 +29,8 @@ type Config struct {
 	FormPass     string
 	SessionSecret string
 	Token        string
-	PollInterval time.Duration
-	MaxFileSize  int64
+	PollInterval   time.Duration
+	MaxPreviewSize int64
 }
 
 func Load() (Config, error) {
@@ -44,7 +44,7 @@ func Load() (Config, error) {
 	formPass := fs.String("form-password", envOr("VELDOC_FORM_PASSWORD", ""), "form auth password")
 	sessionSecret := fs.String("session-secret", envOr("VELDOC_SESSION_SECRET", ""), "form auth session secret")
 	pollInterval := fs.String("poll-interval", envOr("VELDOC_POLL_INTERVAL", "3s"), "client poll interval hint")
-	maxFileSize := fs.String("max-file-size", envOr("VELDOC_MAX_FILE_SIZE", "2097152"), "max file size in bytes")
+	maxPreviewSize := fs.String("max-preview-size", envOr("VELDOC_MAX_PREVIEW_SIZE", "52428800"), "max file size in bytes for preview")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return Config{}, err
@@ -66,11 +66,11 @@ func Load() (Config, error) {
 	}
 	cfg.PollInterval = interval
 
-	size, err := parseSize(*maxFileSize)
+	previewSize, err := parseSize(*maxPreviewSize)
 	if err != nil {
-		return Config{}, fmt.Errorf("invalid max file size: %w", err)
+		return Config{}, fmt.Errorf("invalid max preview size: %w", err)
 	}
-	cfg.MaxFileSize = size
+	cfg.MaxPreviewSize = previewSize
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -86,8 +86,8 @@ func (c Config) Validate() error {
 	if c.Addr == "" {
 		return errors.New("listen address is required")
 	}
-	if c.MaxFileSize <= 0 {
-		return errors.New("max file size must be positive")
+	if c.MaxPreviewSize <= 0 {
+		return errors.New("max preview size must be positive")
 	}
 
 	switch c.Auth {

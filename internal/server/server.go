@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"github.com/aredoff/veldoc/internal/auth"
@@ -91,9 +92,9 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self' blob:; style-src 'self'; script-src 'self'; connect-src 'self' blob:; frame-src 'self' blob:; object-src 'self' blob:")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -127,27 +128,27 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if files.IsImage(path) {
+	content, err := s.files.ReadFile(path)
+	if err == nil {
+		writeJSON(w, map[string]string{
+			"path":    path,
+			"kind":    "text",
+			"content": content,
+		})
+		return
+	}
+	if errors.Is(err, files.ErrBinaryFile) {
 		writeJSON(w, map[string]string{
 			"path": path,
-			"kind": "image",
+			"kind": "binary",
+			"mime": files.FileMIME(path),
 			"url":  "/api/raw?path=" + url.QueryEscape(path),
 		})
 		return
 	}
 
-	content, err := s.files.ReadFile(path)
-	if err != nil {
-		status, msg := mapFileError(err)
-		writeError(w, status, msg)
-		return
-	}
-
-	writeJSON(w, map[string]string{
-		"path":    path,
-		"kind":    "text",
-		"content": content,
-	})
+	status, msg := mapFileError(err)
+	writeError(w, status, msg)
 }
 
 func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
@@ -156,19 +157,25 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "path is required")
 		return
 	}
-	if !files.IsImage(path) {
-		writeError(w, http.StatusBadRequest, "not an image file")
-		return
+	var data []byte
+	var err error
+	if r.URL.Query().Get("download") == "1" {
+		data, err = s.files.ReadBytes(path)
+	} else {
+		data, err = s.files.ReadForPreview(path)
 	}
-
-	data, err := s.files.ReadBytes(path)
 	if err != nil {
 		status, msg := mapFileError(err)
 		writeError(w, status, msg)
 		return
 	}
 
-	w.Header().Set("Content-Type", files.ImageMIME(path))
+	w.Header().Set("Content-Type", files.FileMIME(path))
+	if r.URL.Query().Get("download") == "1" {
+		w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(path))
+	} else {
+		w.Header().Set("Content-Disposition", "inline")
+	}
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(data)
 }

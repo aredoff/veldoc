@@ -12,7 +12,12 @@
     <aside class="sidebar">
       <header class="sidebar-header">
         <span class="logo">veldoc</span>
-        <button id="refresh-btn" type="button" title="Refresh">↻</button>
+        <div class="sidebar-actions">
+          <form id="logout-form" class="hidden" method="POST" action="/logout">
+            <button type="submit">Logout</button>
+          </form>
+          <button id="refresh-btn" type="button" title="Refresh">↻</button>
+        </div>
       </header>
       <nav id="tree" class="tree"></nav>
     </aside>
@@ -24,17 +29,15 @@
         <header class="viewer-header">
           <span id="file-path"></span>
           <div class="viewer-actions">
+            <a id="download-btn" class="viewer-download hidden" href="#" download>Download</a>
             <button id="mode-raw" type="button">Raw</button>
             <button id="mode-md" type="button" class="hidden">Markdown</button>
-            <form id="logout-form" class="hidden" method="POST" action="/logout">
-              <button type="submit">Logout</button>
-            </form>
           </div>
         </header>
         <pre id="raw-view" class="file-content"></pre>
         <div id="md-view" class="file-content markdown hidden"></div>
-        <div id="image-view" class="file-content image-view hidden">
-          <img id="image-preview" alt="">
+        <div id="preview-view" class="file-content preview-view hidden">
+          <div id="preview-content"></div>
         </div>
       </div>
     </main>

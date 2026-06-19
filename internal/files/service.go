@@ -36,12 +36,12 @@ type Node struct {
 }
 
 type Service struct {
-	root        string
-	maxFileSize int64
-	ignores     *ignoreMatcher
+	root           string
+	maxPreviewSize int64
+	ignores        *ignoreMatcher
 }
 
-func NewService(root string, maxFileSize int64) (*Service, error) {
+func NewService(root string, maxPreviewSize int64) (*Service, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
@@ -56,9 +56,9 @@ func NewService(root string, maxFileSize int64) (*Service, error) {
 	}
 
 	return &Service{
-		root:        abs,
-		maxFileSize: maxFileSize,
-		ignores:     newIgnoreMatcher(abs),
+		root:           abs,
+		maxPreviewSize: maxPreviewSize,
+		ignores:        newIgnoreMatcher(abs),
 	}, nil
 }
 
@@ -71,11 +71,14 @@ func (s *Service) Tree() (Node, error) {
 }
 
 func (s *Service) ReadFile(relPath string) (string, error) {
-	if IsImage(relPath) {
+	if IsKnownBinary(relPath) {
+		if err := s.checkPreviewSize(relPath); err != nil {
+			return "", err
+		}
 		return "", ErrBinaryFile
 	}
 
-	data, err := s.ReadBytes(relPath)
+	data, err := s.ReadForPreview(relPath)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +89,37 @@ func (s *Service) ReadFile(relPath string) (string, error) {
 	return string(data), nil
 }
 
+func (s *Service) checkPreviewSize(relPath string) error {
+	abs, err := s.resolve(relPath)
+	if err != nil {
+		return err
+	}
+
+	info, err := os.Lstat(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if info.IsDir() {
+		return ErrIsDirectory
+	}
+	if info.Size() > s.maxPreviewSize {
+		return ErrTooLarge
+	}
+	return nil
+}
+
+func (s *Service) ReadForPreview(relPath string) ([]byte, error) {
+	return s.readBytes(relPath, s.maxPreviewSize)
+}
+
 func (s *Service) ReadBytes(relPath string) ([]byte, error) {
+	return s.readBytes(relPath, 0)
+}
+
+func (s *Service) readBytes(relPath string, limit int64) ([]byte, error) {
 	abs, err := s.resolve(relPath)
 	if err != nil {
 		return nil, err
@@ -105,7 +138,7 @@ func (s *Service) ReadBytes(relPath string) ([]byte, error) {
 	if info.Mode()&os.ModeSymlink != 0 {
 		return nil, ErrBinaryFile
 	}
-	if info.Size() > s.maxFileSize {
+	if limit > 0 && info.Size() > limit {
 		return nil, ErrTooLarge
 	}
 
@@ -115,12 +148,20 @@ func (s *Service) ReadBytes(relPath string) ([]byte, error) {
 	}
 	defer f.Close()
 
-	data, err := io.ReadAll(io.LimitReader(f, s.maxFileSize+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > s.maxFileSize {
-		return nil, ErrTooLarge
+	var data []byte
+	if limit > 0 {
+		data, err = io.ReadAll(io.LimitReader(f, limit+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(data)) > limit {
+			return nil, ErrTooLarge
+		}
+	} else {
+		data, err = io.ReadAll(f)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return data, nil
@@ -289,7 +330,23 @@ func IsImage(path string) bool {
 	}
 }
 
+func IsKnownBinary(path string) bool {
+	if IsImage(path) {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".pdf", ".mp4", ".webm", ".ogg", ".ogv", ".mp3", ".wav", ".flac", ".m4a":
+		return true
+	default:
+		return false
+	}
+}
+
 func ImageMIME(path string) string {
+	return FileMIME(path)
+}
+
+func FileMIME(path string) string {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".png":
 		return "image/png"
@@ -305,6 +362,22 @@ func ImageMIME(path string) string {
 		return "image/x-icon"
 	case ".bmp":
 		return "image/bmp"
+	case ".pdf":
+		return "application/pdf"
+	case ".mp4":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".ogg", ".ogv":
+		return "video/ogg"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	case ".flac":
+		return "audio/flac"
+	case ".m4a":
+		return "audio/mp4"
 	default:
 		return "application/octet-stream"
 	}

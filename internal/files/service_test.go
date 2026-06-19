@@ -57,6 +57,34 @@ func TestServicePathTraversal(t *testing.T) {
 	}
 }
 
+func TestServicePreviewSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	data := make([]byte, 200)
+	if err := os.WriteFile(filepath.Join(root, "big.bin"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	svc, err := NewService(root, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.ReadForPreview("big.bin")
+	if err != ErrTooLarge {
+		t.Fatalf("expected too large for preview, got %v", err)
+	}
+
+	got, err := svc.ReadBytes("big.bin")
+	if err != nil {
+		t.Fatalf("expected download ok, got %v", err)
+	}
+	if len(got) != 200 {
+		t.Fatalf("unexpected size %d", len(got))
+	}
+}
+
 func TestServiceBinaryFile(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +163,43 @@ func TestServiceReadImageBytes(t *testing.T) {
 	_, err = svc.ReadFile("image.png")
 	if err != ErrBinaryFile {
 		t.Fatalf("expected binary error for image text read, got %v", err)
+	}
+}
+
+func TestServiceKnownBinaryTooLarge(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	data := make([]byte, 200)
+	if err := os.WriteFile(filepath.Join(root, "big.png"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	svc, err := NewService(root, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.ReadFile("big.png")
+	if err != ErrTooLarge {
+		t.Fatalf("expected too large, got %v", err)
+	}
+}
+
+func TestFileMIME(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"photo.png":  "image/png",
+		"doc.pdf":    "application/pdf",
+		"clip.mp4":   "video/mp4",
+		"track.mp3":  "audio/mpeg",
+		"unknown.zz": "application/octet-stream",
+	}
+	for path, want := range cases {
+		if got := FileMIME(path); got != want {
+			t.Fatalf("%s: expected %q, got %q", path, want, got)
+		}
 	}
 }
 
