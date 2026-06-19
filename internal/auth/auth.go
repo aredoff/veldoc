@@ -76,9 +76,9 @@ func (b *Basic) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-func (b *Basic) LoginHandler() http.Handler { return http.NotFoundHandler() }
+func (b *Basic) LoginHandler() http.Handler  { return http.NotFoundHandler() }
 func (b *Basic) LogoutHandler() http.Handler { return http.NotFoundHandler() }
-func (b *Basic) LoginPage() http.Handler { return http.NotFoundHandler() }
+func (b *Basic) LoginPage() http.Handler     { return http.NotFoundHandler() }
 
 type Token struct {
 	token string
@@ -100,9 +100,9 @@ func (t *Token) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-func (t *Token) LoginHandler() http.Handler { return http.NotFoundHandler() }
+func (t *Token) LoginHandler() http.Handler  { return http.NotFoundHandler() }
 func (t *Token) LogoutHandler() http.Handler { return http.NotFoundHandler() }
-func (t *Token) LoginPage() http.Handler { return http.NotFoundHandler() }
+func (t *Token) LoginPage() http.Handler     { return http.NotFoundHandler() }
 
 type Form struct {
 	user   string
@@ -131,7 +131,11 @@ func (f *Form) LoginPage() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(loginHTML))
+		message := ""
+		if r.URL.Query().Get("error") == "1" {
+			message = "Invalid credentials"
+		}
+		_, _ = w.Write([]byte(strings.Replace(loginHTML, "{{ERROR}}", message, 1)))
 	})
 }
 
@@ -215,27 +219,17 @@ const loginHTML = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Veldoc Login</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    form { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.1); width: 320px; }
-    h1 { font-size: 1.25rem; margin-bottom: 1.5rem; font-weight: 600; }
-    label { display: block; font-size: .875rem; margin-bottom: .25rem; color: #555; }
-    input { width: 100%; padding: .5rem .75rem; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 1rem; font-size: .875rem; }
-    button { width: 100%; padding: .625rem; background: #111; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: .875rem; }
-    .error { color: #c00; font-size: .8125rem; margin-bottom: 1rem; }
-  </style>
+  <link rel="stylesheet" href="/static/login.css">
 </head>
 <body>
   <form method="POST" action="/login">
     <h1>Veldoc</h1>
-    <p class="error" id="err"></p>
+    <p class="error">{{ERROR}}</p>
     <label for="username">Username</label>
-    <input id="username" name="username" required autofocus>
+    <input id="username" name="username" autocomplete="username" required autofocus>
     <label for="password">Password</label>
-    <input id="password" name="password" type="password" required>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
     <button type="submit">Sign in</button>
   </form>
-  <script>if (location.search.includes('error=1')) document.getElementById('err').textContent = 'Invalid credentials';</script>
 </body>
 </html>`

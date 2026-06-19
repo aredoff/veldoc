@@ -20,10 +20,10 @@ import (
 var webFS embed.FS
 
 type Server struct {
-	cfg     config.Config
-	files   *files.Service
-	auth    auth.Authenticator
-	logger  *slog.Logger
+	cfg    config.Config
+	files  *files.Service
+	auth   auth.Authenticator
+	logger *slog.Logger
 }
 
 func New(cfg config.Config, fileService *files.Service, authenticator auth.Authenticator, logger *slog.Logger) *Server {
@@ -42,6 +42,21 @@ func (s *Server) Handler() http.Handler {
 	public.Handle("POST /login", s.auth.LoginHandler())
 	public.Handle("POST /logout", s.auth.LogoutHandler())
 
+	webRoot, err := fs.Sub(webFS, "web")
+	if err != nil {
+		panic(err)
+	}
+	fileServer := http.FileServer(http.FS(webRoot))
+	public.HandleFunc("GET /static/login.css", func(w http.ResponseWriter, _ *http.Request) {
+		data, err := fs.ReadFile(webRoot, "login.css")
+		if err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = w.Write(data)
+	})
+
 	protected := http.NewServeMux()
 	protected.HandleFunc("GET /api/config", s.handleConfig)
 	protected.HandleFunc("GET /api/tree", s.handleTree)
@@ -49,11 +64,6 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("GET /api/raw", s.handleRaw)
 	protected.HandleFunc("GET /api/markdown", s.handleMarkdown)
 
-	webRoot, err := fs.Sub(webFS, "web")
-	if err != nil {
-		panic(err)
-	}
-	fileServer := http.FileServer(http.FS(webRoot))
 	protected.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, _ *http.Request) {
 		data, err := fs.ReadFile(webRoot, "veldoc.ico")
 		if err != nil {
@@ -83,7 +93,7 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'")
 		next.ServeHTTP(w, r)
 	})
 }
