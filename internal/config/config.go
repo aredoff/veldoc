@@ -40,6 +40,9 @@ func Load() (Config, error) {
 	root := fs.String("root", envOr("VELDOC_ROOT", "/data"), "root directory to serve")
 	addr := fs.String("addr", envOr("VELDOC_ADDR", ":8080"), "listen address")
 	auth := fs.String("auth", envOr("VELDOC_AUTH", "none"), "auth mode: none, basic, form, token")
+	formUser := fs.String("form-user", envOr("VELDOC_FORM_USER", ""), "form auth username")
+	formPass := fs.String("form-password", envOr("VELDOC_FORM_PASSWORD", ""), "form auth password")
+	sessionSecret := fs.String("session-secret", envOr("VELDOC_SESSION_SECRET", ""), "form auth session secret")
 	pollInterval := fs.String("poll-interval", envOr("VELDOC_POLL_INTERVAL", "3s"), "client poll interval hint")
 	maxFileSize := fs.String("max-file-size", envOr("VELDOC_MAX_FILE_SIZE", "2097152"), "max file size in bytes")
 
@@ -52,9 +55,9 @@ func Load() (Config, error) {
 	cfg.Auth = AuthMode(strings.ToLower(strings.TrimSpace(*auth)))
 	cfg.BasicUser = envOr("VELDOC_BASIC_USER", "")
 	cfg.BasicPass = envOr("VELDOC_BASIC_PASSWORD", "")
-	cfg.FormUser = envOr("VELDOC_FORM_USER", "")
-	cfg.FormPass = envOr("VELDOC_FORM_PASSWORD", "")
-	cfg.SessionSecret = envOr("VELDOC_SESSION_SECRET", "")
+	cfg.FormUser = *formUser
+	cfg.FormPass = *formPass
+	cfg.SessionSecret = *sessionSecret
 	cfg.Token = envOr("VELDOC_TOKEN", "")
 
 	interval, err := time.ParseDuration(*pollInterval)

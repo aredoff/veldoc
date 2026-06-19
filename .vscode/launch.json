@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Veldoc",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/veldoc",
+      "args": [
+        "--root", "${workspaceFolder}/data",
+        "--addr", ":8282",
+        "--auth", "form",
+        "--form-user", "admin",
+        "--form-password", "admin",
+        "--session-secret", "dev-secret"
+      ],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

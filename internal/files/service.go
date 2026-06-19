@@ -38,6 +38,7 @@ type Node struct {
 type Service struct {
 	root        string
 	maxFileSize int64
+	ignores     *ignoreMatcher
 }
 
 func NewService(root string, maxFileSize int64) (*Service, error) {
@@ -54,7 +55,11 @@ func NewService(root string, maxFileSize int64) (*Service, error) {
 		return nil, errors.New("root path is not a directory")
 	}
 
-	return &Service{root: abs, maxFileSize: maxFileSize}, nil
+	return &Service{
+		root:        abs,
+		maxFileSize: maxFileSize,
+		ignores:     newIgnoreMatcher(abs),
+	}, nil
 }
 
 func (s *Service) Root() string {
@@ -128,6 +133,10 @@ func (s *Service) resolve(relPath string) (string, error) {
 	}
 
 	rel := strings.TrimPrefix(clean, "/")
+	if isDocignorePath(rel) {
+		return "", ErrNotFound
+	}
+
 	abs := filepath.Join(s.root, rel)
 
 	abs, err := filepath.Abs(abs)
@@ -145,6 +154,10 @@ func (s *Service) resolve(relPath string) (string, error) {
 			return "", ErrNotFound
 		}
 		return "", err
+	}
+
+	if s.ignores.ignored(rel, info.IsDir()) {
+		return "", ErrNotFound
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
@@ -196,10 +209,17 @@ func (s *Service) buildTree(absPath, relPath string) (Node, error) {
 		if entry.Name() == "." || entry.Name() == ".." {
 			continue
 		}
+		if entry.Name() == docignoreName {
+			continue
+		}
 
 		childRel := entry.Name()
 		if relPath != "" {
 			childRel = filepath.ToSlash(filepath.Join(relPath, entry.Name()))
+		}
+
+		if s.ignores.ignored(childRel, entry.IsDir()) {
+			continue
 		}
 
 		entryInfo, err := entry.Info()

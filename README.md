@@ -34,6 +34,36 @@ docker compose up --build
 | `--poll-interval` / `VELDOC_POLL_INTERVAL` | `3s` | UI poll interval |
 | `--max-file-size` / `VELDOC_MAX_FILE_SIZE` | `2097152` | Max readable file size |
 
+## Excluding files (`.docignore`)
+
+Place a `.docignore` file in the served root or any subdirectory. Syntax matches `.gitignore`: wildcards (`*`, `?`, `**`), negation (`!`), directory patterns (trailing `/`), and comments (`#`).
+
+Ignored paths are hidden from the file tree and cannot be read via the API. `.docignore` files themselves are always hidden.
+
+**Root example** (`data/.docignore`):
+
+```gitignore
+# secrets
+.env
+private/
+
+# build artifacts
+*.log
+dist/
+
+# except this one
+!important.log
+```
+
+**Nested example** (`data/docs/.docignore`):
+
+```gitignore
+drafts/
+*.tmp
+```
+
+Patterns in a nested `.docignore` apply only to files under that directory, like Git.
+
 ## Auth examples
 
 **Basic auth:**
