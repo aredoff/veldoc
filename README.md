@@ -1,6 +1,6 @@
 # Veldoc
 
-[![Docker Pulls](https://shields.io)](https://hub.docker.com/r/aredoff/veldoc)
+[![Docker Hub](https://img.shields.io/docker/pulls/aredoff/veldoc?logo=docker&label=Docker%20Hub)](https://hub.docker.com/r/aredoff/veldoc)
 [![Go Report Card](https://goreportcard.com/badge/github.com/aredoff/veldoc)](https://goreportcard.com/report/github.com/aredoff/veldoc)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
